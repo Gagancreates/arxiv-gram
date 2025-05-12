@@ -37,22 +37,6 @@ export default function PaperBrowser() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  const renderFilters = () => (
-    <div className="flex flex-col gap-4 w-full">
-      <div className="relative flex-grow">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-        <Input
-          type="text"
-          placeholder="Search papers by title..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-      <FilterBar selectedCategories={selectedCategories} setSelectedCategories={setSelectedCategories} />
-    </div>
-  )
-
   // For mobile view - show single paper detail
   const renderMobilePaperDetail = () => {
     if (!selectedPaper) return null
@@ -84,7 +68,7 @@ export default function PaperBrowser() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="container mx-auto px-4 py-8 max-w-full">
       {isMobile && selectedPaper && renderMobilePaperDetail()}
 
       <header className={cn("mb-8", isMobile && selectedPaper ? "hidden" : "")}>
@@ -102,33 +86,22 @@ export default function PaperBrowser() {
               {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               <span className="sr-only">Toggle theme</span>
             </Button>
-
-            {isMobile && (
-              <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="outline" size="icon" className="rounded-full md:hidden">
-                    <Menu className="h-5 w-5" />
-                    <span className="sr-only">Open filters</span>
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[85%] sm:w-[350px]">
-                  <div className="flex flex-col h-full">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-lg font-semibold">Filters</h2>
-                      <Button variant="ghost" size="icon" onClick={() => setMenuOpen(false)}>
-                        <X className="h-5 w-5" />
-                        <span className="sr-only">Close</span>
-                      </Button>
-                    </div>
-                    {renderFilters()}
-                  </div>
-                </SheetContent>
-              </Sheet>
-            )}
           </div>
         </div>
 
-        {!isMobile && <div className="flex flex-col md:flex-row gap-4 mb-6">{renderFilters()}</div>}
+        <div className="flex flex-col gap-4 mb-6 w-full">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              type="text"
+              placeholder="Search papers by title..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 w-full"
+            />
+          </div>
+          <FilterBar selectedCategories={selectedCategories} setSelectedCategories={setSelectedCategories} />
+        </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
@@ -137,7 +110,7 @@ export default function PaperBrowser() {
             <TabsTrigger value="liked">Liked ({likedPapers.length})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="browse" className="mt-6">
+          <TabsContent value="browse" className="mt-10">
             <PaperList
               papers={papers}
               loading={loading}
@@ -151,7 +124,7 @@ export default function PaperBrowser() {
             />
           </TabsContent>
 
-          <TabsContent value="saved" className="mt-6">
+          <TabsContent value="saved" className="mt-10">
             <PaperList
               papers={savedPapers}
               loading={false}
@@ -166,7 +139,7 @@ export default function PaperBrowser() {
             />
           </TabsContent>
 
-          <TabsContent value="liked" className="mt-6">
+          <TabsContent value="liked" className="mt-10">
             <PaperList
               papers={likedPapers}
               loading={false}

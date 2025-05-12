@@ -51,10 +51,10 @@ export default function FilterBar({ selectedCategories, setSelectedCategories }:
   )
 
   return (
-    <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+    <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between w-full">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="gap-1.5">
+          <Button variant="outline" className="gap-1.5 w-full sm:w-auto">
             <Filter className="h-4 w-4" />
             Filter by Category
             <ChevronDown className="h-4 w-4 ml-1" />
@@ -85,7 +85,7 @@ export default function FilterBar({ selectedCategories, setSelectedCategories }:
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 w-full">
         {selectedCategories.map((categoryId) => (
           <Badge key={categoryId} variant="secondary" className="gap-1 px-2 py-1">
             {getCategoryName(categoryId)}

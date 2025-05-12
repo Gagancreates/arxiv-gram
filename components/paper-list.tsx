@@ -119,7 +119,7 @@ export default function PaperList({
   return (
     <div 
       ref={containerRef}
-      className={isMobile ? "h-[100vh] overflow-y-auto snap-y snap-mandatory scroll-smooth" : "space-y-6"}
+      className={isMobile ? "h-[100vh] overflow-y-auto snap-y snap-mandatory scroll-smooth mt-8" : "space-y-6 mt-8"}
       style={{ touchAction: 'pan-y' }}
     >
       {papers.map((paper, index) => (

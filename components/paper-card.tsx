@@ -77,8 +77,8 @@ export default function PaperCard({ paper, isSaved, isLiked, onToggleSaved, onTo
 
   const truncateAbstract = (abstract: string) => {
     const words = abstract.split(" ")
-    if (words.length > 40 && !expanded) {
-      return words.slice(0, 40).join(" ") + "..."
+    if (words.length > 30 && !expanded) {
+      return words.slice(0, 30).join(" ") + "..."
     }
     return abstract
   }
@@ -185,7 +185,7 @@ export default function PaperCard({ paper, isSaved, isLiked, onToggleSaved, onTo
       ref={cardRef}
       className={cn(
         "w-full", 
-        isMobile ? "py-0 px-4" : "py-4 sm:py-2",
+        isMobile ? "py-0 px-0" : "py-6 sm:py-5 px-1",
         isActive && isMobile ? "opacity-100 scale-100" : (isMobile ? "opacity-95 scale-98" : ""),
         `animate-in fade-in delay-${Math.min(index || 0, 5) * 100}`
       )}
@@ -202,9 +202,9 @@ export default function PaperCard({ paper, isSaved, isLiked, onToggleSaved, onTo
         
         <CardContent className={cn(
           "relative z-10", 
-          isMobile ? "p-4 sm:p-5" : "p-6 sm:p-8"
+          isMobile ? "p-3 sm:p-4" : "p-4 sm:p-6"
         )}>
-          <div className="space-y-5">
+          <div className="space-y-3">
             <div>
               <h2 className={cn(
                 "text-xl sm:text-2xl font-semibold leading-tight tracking-tight",
@@ -213,20 +213,20 @@ export default function PaperCard({ paper, isSaved, isLiked, onToggleSaved, onTo
                 {paper.title}
               </h2>
 
-              <div className="flex flex-wrap items-center gap-3 mt-4">
-                <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-800/80 px-2.5 py-1 rounded-full border border-gray-200/50 dark:border-gray-700/50">
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-800/80 px-2 py-0.5 rounded-full border border-gray-200/50 dark:border-gray-700/50">
                   <Users className="h-3.5 w-3.5" />
                   <p className="truncate max-w-[200px] sm:max-w-none">{formatAuthors(paper.authors)}</p>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-800/80 px-2.5 py-1 rounded-full border border-gray-200/50 dark:border-gray-700/50">
+                <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-800/80 px-2 py-0.5 rounded-full border border-gray-200/50 dark:border-gray-700/50">
                   <Calendar className="h-3.5 w-3.5" />
                   <p>{formatDate(paper.published)}</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-1.5 mt-2">
               {Object.entries(groupedCategories).map(([primaryField, categories]) => (
                 <div key={primaryField} className="flex flex-col gap-1.5 mb-2">
                   <div className="flex flex-wrap gap-1.5">
@@ -273,10 +273,10 @@ export default function PaperCard({ paper, isSaved, isLiked, onToggleSaved, onTo
               ))}
             </div>
 
-            <div className="bg-white/90 dark:bg-gray-800/90 p-5 rounded-xl text-sm text-gray-700 dark:text-gray-300 border border-gray-100/80 dark:border-gray-700/80 shadow-sm">
+            <div className="bg-white/90 dark:bg-gray-800/90 p-4 rounded-xl text-sm text-gray-700 dark:text-gray-300 border border-gray-100/80 dark:border-gray-700/80 shadow-sm">
               <p className="leading-relaxed">{truncateAbstract(paper.abstract)}</p>
               
-              {paper.abstract.split(" ").length > 40 && (
+              {paper.abstract.split(" ").length > 30 && (
                 <button
                   onClick={handleReadMoreClick}
                   className={cn(
@@ -302,8 +302,8 @@ export default function PaperCard({ paper, isSaved, isLiked, onToggleSaved, onTo
         </CardContent>
 
         <CardFooter className={cn(
-          "relative z-10 bg-white/80 dark:bg-gray-800/80 flex flex-wrap justify-between gap-2 border-t border-gray-100/80 dark:border-gray-700/80",
-          isMobile ? "px-4 py-3" : "px-6 sm:px-8 py-4"
+          "relative z-10 bg-white/80 dark:bg-gray-800/80 flex flex-wrap justify-between gap-2 border-t border-gray-100/80 dark:border-gray-700/80 sticky bottom-0 left-0 right-0",
+          isMobile ? "px-3 py-2" : "px-4 sm:px-6 py-3"
         )}>
           <div className="flex gap-2">
             <Button
