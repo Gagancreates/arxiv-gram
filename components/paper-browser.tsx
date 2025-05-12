@@ -83,18 +83,6 @@ export default function PaperBrowser() {
     )
   }
 
-  // Get the current papers based on active tab
-  const getCurrentPapers = () => {
-    switch (activeTab) {
-      case "saved":
-        return savedPapers
-      case "liked":
-        return likedPapers
-      default:
-        return papers
-    }
-  }
-
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       {isMobile && selectedPaper && renderMobilePaperDetail()}

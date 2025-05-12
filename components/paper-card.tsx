@@ -20,7 +20,7 @@ interface PaperCardProps {
   index?: number
 }
 
-export default function PaperCard({ paper, isSaved, isLiked, onToggleSaved, onToggleLiked, index = 0 }: PaperCardProps) {
+export default function PaperCard({ paper, isSaved, isLiked, onToggleSaved, onToggleLiked, index }: PaperCardProps) {
   const [expanded, setExpanded] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -185,7 +185,9 @@ export default function PaperCard({ paper, isSaved, isLiked, onToggleSaved, onTo
       ref={cardRef}
       className={cn(
         "w-full", 
-        isMobile ? "py-0 px-4" : "py-4 sm:py-2"
+        isMobile ? "py-0 px-4" : "py-4 sm:py-2",
+        isActive && isMobile ? "opacity-100 scale-100" : (isMobile ? "opacity-95 scale-98" : ""),
+        `animate-in fade-in delay-${Math.min(index || 0, 5) * 100}`
       )}
     >
       <Card className={cn(
