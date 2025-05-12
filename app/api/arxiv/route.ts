@@ -4,6 +4,37 @@ import type { Paper } from '@/types/paper';
 
 export const dynamic = 'force-dynamic'; // Disable caching for this route
 
+// Define interfaces for arXiv API response structure
+interface ArxivLink {
+  href?: string;
+  title?: string;
+}
+
+interface ArxivCategory {
+  term?: string;
+}
+
+interface ArxivAuthor {
+  name?: string;
+}
+
+interface ArxivEntry {
+  id?: string;
+  title?: string;
+  summary?: string;
+  published?: string;
+  updated?: string;
+  author?: ArxivAuthor | ArxivAuthor[];
+  category?: ArxivCategory | ArxivCategory[];
+  link?: ArxivLink | ArxivLink[];
+}
+
+interface ArxivResponse {
+  feed?: {
+    entry?: ArxivEntry | ArxivEntry[];
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('query') || 'cat:cs.*';
@@ -45,7 +76,7 @@ export async function GET(request: Request) {
       isArray: (name) => ["entry", "author", "category"].includes(name),
     });
 
-    let result;
+    let result: ArxivResponse;
     try {
       result = parser.parse(xmlData);
     } catch (parseError) {
@@ -62,15 +93,20 @@ export async function GET(request: Request) {
     const entries = Array.isArray(result.feed.entry) ? result.feed.entry : [result.feed.entry];
 
     // Map the entries to our Paper type
-    const papers: Paper[] = entries.map((entry: any) => {
+    const papers: Paper[] = entries.map((entry: ArxivEntry) => {
       try {
         // Extract the PDF URL
         const links = Array.isArray(entry.link) ? entry.link : [entry.link];
-        const pdfLink = links.find((link: any) => link?.title === "pdf");
+        const pdfLink = links
+          .filter((link): link is ArxivLink => link !== undefined)
+          .find((link) => link?.title === "pdf");
 
         // Extract categories
         const categories = Array.isArray(entry.category)
-          ? entry.category.map((cat: any) => cat?.term).filter(Boolean)
+          ? entry.category
+              .filter((cat): cat is ArxivCategory => cat !== undefined)
+              .map((cat) => cat.term)
+              .filter((term): term is string => term !== undefined)
           : (entry.category?.term ? [entry.category.term] : []);
 
         // Safely extract and clean text fields
@@ -83,7 +119,10 @@ export async function GET(request: Request) {
           : 'No abstract available';
           
         const authors = Array.isArray(entry.author) 
-          ? entry.author.map((author: any) => author?.name).filter(Boolean)
+          ? entry.author
+              .filter((author): author is ArxivAuthor => author !== undefined)
+              .map((author) => author.name)
+              .filter((name): name is string => name !== undefined)
           : (entry.author?.name ? [entry.author.name] : ['Unknown Author']);
 
         return {

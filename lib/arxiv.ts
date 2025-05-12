@@ -1,4 +1,3 @@
-import { XMLParser } from "fast-xml-parser"
 import type { Paper } from "@/types/paper"
 
 interface FetchPapersOptions {
