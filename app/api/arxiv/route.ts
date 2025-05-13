@@ -35,17 +35,59 @@ interface ArxivResponse {
   };
 }
 
+// Map common user-friendly tags to arXiv CS subcategories
+const tagToSubcategoryMap: Record<string, string> = {
+  'ai': 'cs.AI', // Artificial Intelligence
+  'ml': 'cs.LG', // Machine Learning (Learning)
+  'cv': 'cs.CV', // Computer Vision
+  'nlp': 'cs.CL', // Computational Linguistics (NLP)
+  'robotics': 'cs.RO', // Robotics
+  'security': 'cs.CR', // Cryptography and Security
+  'systems': 'cs.OS', // Operating Systems
+  'graphics': 'cs.GR', // Graphics
+  'hci': 'cs.HC', // Human-Computer Interaction
+  'databases': 'cs.DB', // Databases
+  'networking': 'cs.NI', // Networking and Internet Architecture
+  'programming': 'cs.PL', // Programming Languages
+  'algorithms': 'cs.DS', // Data Structures and Algorithms
+  'distributed': 'cs.DC', // Distributed Computing
+  'software': 'cs.SE', // Software Engineering
+};
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const query = searchParams.get('query') || 'cat:cs.*';
+  
+  // Get user preferences for specific subcategories
+  const userPreferences = searchParams.get('subcategories') || '';
+  const preferredSubcategories = userPreferences
+    .split(',')
+    .map(tag => tag.trim().toLowerCase())
+    .filter(Boolean)
+    .map(tag => tagToSubcategoryMap[tag] || tag); // Map user-friendly tags to arXiv categories
+  
+  // Build the query based on preferences or default to all CS
+  let query = '';
+  if (preferredSubcategories.length > 0) {
+    // Create a query like: cat:cs.AI OR cat:cs.LG OR cat:cs.CV
+    query = preferredSubcategories.map(subcat => `cat:${subcat}`).join(' OR ');
+    console.log('Using specific subcategories query:', query);
+  } else {
+    // Default to all CS papers if no preferences
+    query = searchParams.get('query') || 'cat:cs.*';
+    console.log('Using default CS query:', query);
+  }
+  
   const start = parseInt(searchParams.get('start') || '0');
   const maxResults = parseInt(searchParams.get('maxResults') || '50');
+  const sortBy = searchParams.get('sortBy') || 'submittedDate'; // Default to recent papers
+  const sortOrder = searchParams.get('sortOrder') || 'descending'; // Newest first
 
   try {
     // Properly encode the URL components
     const encodedQuery = encodeURIComponent(query);
-    // Direct access to arXiv API without any sorting parameters to get papers from all dates
-    const url = `https://export.arxiv.org/api/query?search_query=${encodedQuery}&start=${start}&max_results=${maxResults}`;
+    
+    // Build the URL with sort parameters to get recent papers first
+    const url = `https://export.arxiv.org/api/query?search_query=${encodedQuery}&start=${start}&max_results=${maxResults}&sortBy=${sortBy}&sortOrder=${sortOrder}`;
     
     console.log('Fetching from arXiv with URL:', url);
     
@@ -154,15 +196,33 @@ export async function GET(request: Request) {
       }
     }).filter(Boolean) as Paper[]; // Remove any null entries
 
-    // Filter to only include papers with CS categories
-    const csPapers = papers.filter(paper => 
-      paper.categories.some(category => category.startsWith('cs.'))
-    );
+    // Filter to only include papers with specified categories if preferences were provided
+    let filteredPapers = papers;
+    
+    if (preferredSubcategories.length > 0) {
+      // Convert all category strings to lowercase for case-insensitive matching
+      const lowerCasePreferences = preferredSubcategories.map(cat => cat.toLowerCase());
+      
+      filteredPapers = papers.filter(paper => 
+        // Check if any of the paper's categories match user preferences
+        paper.categories.some(category => 
+          lowerCasePreferences.some(pref => 
+            category.toLowerCase().includes(pref.toLowerCase())
+          )
+        )
+      );
+      
+      console.log(`Filtered to ${filteredPapers.length} papers matching user preferences`);
+    } else {
+      // Default to CS papers only
+      filteredPapers = papers.filter(paper => 
+        paper.categories.some(category => category.startsWith('cs.'))
+      );
+      console.log(`Found ${filteredPapers.length} CS papers`);
+    }
 
-    console.log('Found CS papers:', csPapers.length);
-
-    // Return successful response with CS papers only
-    return NextResponse.json({ papers: csPapers });
+    // Return successful response with filtered papers
+    return NextResponse.json({ papers: filteredPapers });
   } catch (error) {
     console.error('Error fetching from arXiv:', error);
     
