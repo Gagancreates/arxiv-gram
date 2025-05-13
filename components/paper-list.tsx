@@ -55,39 +55,70 @@ export default function PaperList({
     }
   }, [])
 
-  // Optimize mobile scrolling
+  // Optimize mobile scrolling with improved search results handling
   useEffect(() => {
     if (!isMobile || !containerRef.current) return;
     
-    // Preload nearby papers to make scrolling smoother
+    // Improved preload function that works better with search results
     const preloadNearbyPapers = () => {
       const cards = containerRef.current?.querySelectorAll('.paper-card-container');
-      if (!cards) return;
+      if (!cards || cards.length === 0) return;
       
-      const visibleCardIndex = Array.from(cards).findIndex(card => {
+      // Find visible cards
+      const visibleCards = Array.from(cards).filter(card => {
         const rect = card.getBoundingClientRect();
-        return rect.top >= 0 && rect.bottom <= window.innerHeight;
+        // Consider a card visible if any part of it is in the viewport
+        return (rect.top < window.innerHeight && rect.bottom > 0);
       });
       
-      if (visibleCardIndex !== -1) {
-        // Preload next and previous card
-        const preloadIndexes = [visibleCardIndex - 1, visibleCardIndex + 1];
-        preloadIndexes.forEach(index => {
-          if (index >= 0 && index < cards.length) {
-            const card = cards[index] as HTMLElement;
-            card.style.visibility = 'visible';
-          }
+      if (visibleCards.length > 0) {
+        // Get the indices of all visible cards
+        const visibleIndices = visibleCards.map(card => 
+          Array.from(cards).indexOf(card)
+        );
+        
+        // For each visible card, preload adjacent ones
+        visibleIndices.forEach(visIndex => {
+          // Preload next and previous cards
+          const preloadIndexes = [visIndex - 1, visIndex + 1];
+          preloadIndexes.forEach(index => {
+            if (index >= 0 && index < cards.length) {
+              const card = cards[index] as HTMLElement;
+              card.style.visibility = 'visible';
+            }
+          });
         });
+        
+        // Log for debugging
+        console.log(`${visibleCards.length} cards visible on screen, preloading adjacent cards`);
+      } else {
+        // If no cards are visible (might happen during search), make the first cards visible
+        const firstCards = Array.from(cards).slice(0, Math.min(3, cards.length));
+        firstCards.forEach(card => {
+          (card as HTMLElement).style.visibility = 'visible';
+        });
+        
+        console.log("No cards visible, preloading first few cards");
       }
     };
     
     const container = containerRef.current;
+    
+    // Run the preload function immediately to ensure initial visibility
+    preloadNearbyPapers();
+    
+    // Then set up the event listener
     container.addEventListener('scroll', preloadNearbyPapers);
+    
+    // Also run it when papers change
+    if (papers.length > 0) {
+      preloadNearbyPapers();
+    }
     
     return () => {
       container.removeEventListener('scroll', preloadNearbyPapers);
     };
-  }, [isMobile, papers.length]);
+  }, [isMobile, papers.length, papers]);
 
   // Generate a unique batch ID based on current papers
   const generateBatchId = useCallback(() => {
@@ -226,14 +257,14 @@ export default function PaperList({
   return (
     <div 
       ref={containerRef}
-      className={isMobile ? "h-[100vh] overflow-y-auto snap-y snap-mandatory scroll-smooth mt-8" : "space-y-6 mt-8"}
-      style={{ touchAction: 'pan-y' }}
+      className={isMobile ? "overflow-y-auto scroll-smooth mt-8" : "space-y-6 mt-8"}
+      style={{ touchAction: 'pan-y', maxHeight: isMobile ? 'calc(100vh - 250px)' : 'auto' }}
     >
       {papers.map((paper, index) => (
         <div
           key={`paper-${paper.id}`}
           onClick={onSelectPaper ? () => onSelectPaper(paper) : undefined}
-          className={`paper-card-container ${onSelectPaper ? "cursor-pointer" : ""} ${isMobile ? "h-[100vh] snap-start snap-always flex items-center justify-center" : ""}`}
+          className={`paper-card-container ${onSelectPaper ? "cursor-pointer" : ""} ${isMobile ? "mb-4" : ""}`}
         >
           <PaperCard
             paper={paper}
@@ -253,7 +284,7 @@ export default function PaperList({
       ))}
 
       {!singleView && (
-        <div ref={observerTarget} className={`h-10 flex justify-center items-center ${isMobile ? "snap-start snap-always h-20" : ""}`}>
+        <div ref={observerTarget} className={`h-10 flex justify-center items-center ${isMobile ? "h-20" : ""}`}>
           {(loading || isLoadingMore) && (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-6 w-6 animate-spin text-blue-600" />

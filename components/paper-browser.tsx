@@ -2,22 +2,25 @@
 
 import { useState, useEffect } from "react"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Search, ChevronLeft } from "lucide-react"
+import { Sun, Moon, Search, ChevronLeft, X, Info } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import PaperList from "./paper-list"
 import FilterBar from "./filter-bar"
+import CategoryPreferences from "./category-preferences"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePapers } from "@/hooks/use-papers"
 import type { Paper } from "@/types/paper"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 
 export default function PaperBrowser() {
   const { theme, setTheme } = useTheme()
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedPreferences, setSelectedPreferences] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState("browse")
   const isMobile = useMediaQuery("(max-width: 768px)")
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null)
@@ -25,16 +28,21 @@ export default function PaperBrowser() {
   const { papers, savedPapers, likedPapers, loading, loadMore, toggleSaved, toggleLiked, hasMore } = usePapers(
     debouncedQuery,
     selectedCategories,
+    selectedPreferences
   )
 
-  // Debounce search input
+  // Debounce search input and reset selected paper when searching
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery)
+      // Reset selected paper when searching to ensure mobile users see results
+      if (searchQuery !== debouncedQuery && selectedPaper) {
+        setSelectedPaper(null)
+      }
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [searchQuery])
+  }, [searchQuery, debouncedQuery, selectedPaper])
 
   // For mobile view - show single paper detail
   const renderMobilePaperDetail = () => {
@@ -64,6 +72,11 @@ export default function PaperBrowser() {
         </div>
       </div>
     )
+  }
+
+  const clearSearch = () => {
+    setSearchQuery("")
+    setSelectedPaper(null)
   }
 
   return (
@@ -96,9 +109,43 @@ export default function PaperBrowser() {
               placeholder="Search papers by title..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 w-full"
+              className="pl-10 w-full pr-10"
+            />
+            {searchQuery && (
+              <button 
+                onClick={clearSearch} 
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Clear search</span>
+              </button>
+            )}
+          </div>
+          
+          {/* Search results indicator visible on mobile */}
+          {isMobile && debouncedQuery && (
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="outline" className="text-xs px-2 py-0">
+                <Info className="h-3 w-3 mr-1" />
+                {papers.length} results for "{debouncedQuery}"
+              </Badge>
+              {papers.length > 0 && (
+                <span className="text-xs text-gray-500">
+                  (tap on a paper to view details)
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* Research interests selection */}
+          <div className="mb-4">
+            <CategoryPreferences 
+              selectedPreferences={selectedPreferences}
+              onPreferencesChange={setSelectedPreferences}
             />
           </div>
+          
+          {/* Legacy category filter */}
           <FilterBar selectedCategories={selectedCategories} setSelectedCategories={setSelectedCategories} />
         </div>
 
