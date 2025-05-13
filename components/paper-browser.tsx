@@ -2,16 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Search, Menu, X, ChevronLeft } from "lucide-react"
+import { Sun, Moon, Search, ChevronLeft } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import PaperList from "./paper-list"
 import FilterBar from "./filter-bar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { usePapers } from "@/hooks/use-papers"
 import type { Paper } from "@/types/paper"
+import { cn } from "@/lib/utils"
 
 export default function PaperBrowser() {
   const { theme, setTheme } = useTheme()
@@ -20,7 +20,6 @@ export default function PaperBrowser() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState("browse")
   const isMobile = useMediaQuery("(max-width: 768px)")
-  const [menuOpen, setMenuOpen] = useState(false)
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null)
 
   const { papers, savedPapers, likedPapers, loading, loadMore, toggleSaved, toggleLiked, hasMore } = usePapers(
@@ -158,5 +157,3 @@ export default function PaperBrowser() {
     </div>
   )
 }
-
-import { cn } from "@/lib/utils"

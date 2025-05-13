@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect, useState, useCallback } from "react"
 import PaperCard from "./paper-card"
 import { Loader2 } from "lucide-react"
 import type { Paper } from "@/types/paper"
@@ -36,6 +36,8 @@ export default function PaperList({
   const observerTarget = useRef<HTMLDivElement>(null)
   const [isMobile, setIsMobile] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const previousPapersLength = useRef(papers.length)
   
   // Check if the device is mobile
   useEffect(() => {
@@ -85,28 +87,54 @@ export default function PaperList({
     };
   }, [isMobile, papers.length]);
 
-  useEffect(() => {
-    if (!hasMore || singleView) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          loadMore()
-        }
-      },
-      { threshold: 0.1 },
-    )
-
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current)
+  // Handle loading more papers safely
+  const handleLoadMore = useCallback(() => {
+    if (!isLoadingMore && !loading && hasMore) {
+      setIsLoadingMore(true);
+      loadMore();
     }
+  }, [isLoadingMore, loading, hasMore, loadMore]);
+
+  // Reset loading state when papers change
+  useEffect(() => {
+    if (papers.length > previousPapersLength.current) {
+      setIsLoadingMore(false);
+      previousPapersLength.current = papers.length;
+    }
+  }, [papers.length]);
+
+  // Intersection observer for infinite loading
+  useEffect(() => {
+    if (!hasMore || singleView || loading) return;
+
+    let observer: IntersectionObserver;
+    let timeout: NodeJS.Timeout;
+
+    const setupObserver = () => {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && hasMore && !loading && !isLoadingMore) {
+            handleLoadMore();
+          }
+        },
+        { threshold: 0.1, rootMargin: '100px' }
+      );
+
+      if (observerTarget.current) {
+        observer.observe(observerTarget.current);
+      }
+    };
+
+    // Small delay to prevent immediate re-triggering
+    timeout = setTimeout(setupObserver, 100);
 
     return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current)
+      if (observer) {
+        observer.disconnect();
       }
-    }
-  }, [loadMore, hasMore, loading, singleView])
+      clearTimeout(timeout);
+    };
+  }, [handleLoadMore, hasMore, loading, isLoadingMore, singleView]);
 
   if (papers.length === 0 && !loading) {
     return (
@@ -147,7 +175,7 @@ export default function PaperList({
 
       {!singleView && (
         <div ref={observerTarget} className={`h-10 flex justify-center items-center ${isMobile ? "snap-start snap-always h-20" : ""}`}>
-          {loading && (
+          {(loading || isLoadingMore) && (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
               <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">Loading more papers...</span>
