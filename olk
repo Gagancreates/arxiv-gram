@@ -1,0 +1,65 @@
+[33mcommit a7c710458474f62766ddda5b32511574ccf79a68[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Tue May 13 16:38:22 2025 +0530
+
+    fixed search for mobile
+
+[33mcommit 3b5fb036322c289f6edab7417039fe3721679df4[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Tue May 13 16:30:51 2025 +0530
+
+    fixed the feed, now you get the most recent papers
+
+[33mcommit 5757d284c9499caea4213ba6719b39c2477f3bfb[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Tue May 13 15:58:40 2025 +0530
+
+    fixed the feed
+
+[33mcommit 95a0935128c613e144991b38dedc79e1ee1aaa58[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Tue May 13 15:49:10 2025 +0530
+
+    infinite scroll working
+
+[33mcommit 6b5e5d60aab83d9d05e9ef9730245a0e02026d3f[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Tue May 13 14:54:08 2025 +0530
+
+    attempt 3 to resolve build issues
+
+[33mcommit b3df5ff0f5b48b59a5697e48b566e963badd7c26[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Tue May 13 14:47:35 2025 +0530
+
+    proper scroll effect, and a bit of design improvement
+
+[33mcommit dd5b8b6f426fa89edff2760fca8f89f6db239084[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Tue May 13 01:29:40 2025 +0530
+
+    almost there
+
+[33mcommit d8818374ea22af2cb1a412642bc0594a8f4a20b8[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Tue May 13 00:42:33 2025 +0530
+
+    attempt 2
+
+[33mcommit 000297a4cd72af74c075003e5feb3c5d3c34b91f[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Tue May 13 00:35:31 2025 +0530
+
+    fixed deployment error
+
+[33mcommit a07e8a46e498e59510ef0461477968c161a5a934[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Mon May 12 22:20:29 2025 +0530
+
+    initial commit
+
+[33mcommit ab0761d9147b5ecd46a7d37647874017469b416e[m
+Author: Gagancreates <gaganp000999@gmail.com>
+Date:   Mon May 12 21:21:58 2025 +0530
+
+    Initial commit from Create Next App
