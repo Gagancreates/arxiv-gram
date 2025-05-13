@@ -37,9 +37,9 @@ interface ArxivResponse {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const query = searchParams.get('query') || 'cat:cs.* OR cat:math.*';
+  const query = searchParams.get('query') || 'cat:cs.*';
   const start = parseInt(searchParams.get('start') || '0');
-  const maxResults = parseInt(searchParams.get('maxResults') || '10');
+  const maxResults = parseInt(searchParams.get('maxResults') || '50');
 
   try {
     // Properly encode the URL components
@@ -154,11 +154,15 @@ export async function GET(request: Request) {
       }
     }).filter(Boolean) as Paper[]; // Remove any null entries
 
-    // Log the dates of the papers
-    console.log('Paper dates:', papers.map(p => ({ id: p.id, published: p.published })));
+    // Filter to only include papers with CS categories
+    const csPapers = papers.filter(paper => 
+      paper.categories.some(category => category.startsWith('cs.'))
+    );
 
-    // Return successful response
-    return NextResponse.json({ papers });
+    console.log('Found CS papers:', csPapers.length);
+
+    // Return successful response with CS papers only
+    return NextResponse.json({ papers: csPapers });
   } catch (error) {
     console.error('Error fetching from arXiv:', error);
     
