@@ -38,6 +38,8 @@ export default function PaperList({
   const containerRef = useRef<HTMLDivElement>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const previousPapersLength = useRef(papers.length)
+  const lastLoadTime = useRef<number>(0)
+  const loadingBatchId = useRef<string>("")
   
   // Check if the device is mobile
   useEffect(() => {
@@ -87,34 +89,79 @@ export default function PaperList({
     };
   }, [isMobile, papers.length]);
 
-  // Handle loading more papers safely
+  // Generate a unique batch ID based on current papers
+  const generateBatchId = useCallback(() => {
+    if (papers.length === 0) return "";
+    // Use the first and last paper IDs to create a unique batch identifier
+    return `${papers[0].id}-${papers[papers.length - 1].id}-${papers.length}`;
+  }, [papers]);
+
+  // Handle loading more papers safely with debounce and batch tracking
   const handleLoadMore = useCallback(() => {
-    if (!isLoadingMore && !loading && hasMore) {
-      setIsLoadingMore(true);
-      loadMore();
+    const now = Date.now();
+    const currentBatchId = generateBatchId();
+    
+    // Prevent loading if:
+    // 1. Already loading
+    // 2. No more papers to load
+    // 3. Less than 1 second since last load
+    // 4. Same batch is being loaded (prevents duplicate loads)
+    if (
+      isLoadingMore || 
+      loading || 
+      !hasMore || 
+      (now - lastLoadTime.current < 1000) ||
+      (currentBatchId === loadingBatchId.current && currentBatchId !== "")
+    ) {
+      return;
     }
-  }, [isLoadingMore, loading, hasMore, loadMore]);
+    
+    // Update tracking variables
+    setIsLoadingMore(true);
+    lastLoadTime.current = now;
+    loadingBatchId.current = currentBatchId;
+    
+    // Load more papers
+    loadMore();
+  }, [isLoadingMore, loading, hasMore, loadMore, generateBatchId]);
 
   // Reset loading state when papers change
   useEffect(() => {
     if (papers.length > previousPapersLength.current) {
       setIsLoadingMore(false);
       previousPapersLength.current = papers.length;
+    } else if (papers.length === previousPapersLength.current && isLoadingMore) {
+      // If papers length didn't change after loading attempt, we've reached the end
+      setIsLoadingMore(false);
     }
-  }, [papers.length]);
+  }, [papers.length, isLoadingMore]);
 
   // Intersection observer for infinite loading
   useEffect(() => {
-    if (!hasMore || singleView || loading) return;
+    if (!hasMore || singleView) return;
 
     let observer: IntersectionObserver;
-    let timeout: NodeJS.Timeout;
-
+    
     const setupObserver = () => {
       observer = new IntersectionObserver(
         (entries) => {
-          if (entries[0].isIntersecting && hasMore && !loading && !isLoadingMore) {
-            handleLoadMore();
+          if (!entries[0].isIntersecting) return;
+          
+          // Check if we're actually at the bottom of the container
+          const container = containerRef.current;
+          if (container) {
+            const { scrollTop, scrollHeight, clientHeight } = container;
+            const scrolledToBottom = scrollHeight - scrollTop - clientHeight < 200;
+            
+            // Only load more if we're near the bottom
+            if (scrolledToBottom && hasMore && !loading && !isLoadingMore) {
+              handleLoadMore();
+            }
+          } else {
+            // Fallback if container ref isn't available
+            if (hasMore && !loading && !isLoadingMore) {
+              handleLoadMore();
+            }
           }
         },
         { threshold: 0.1, rootMargin: '100px' }
@@ -125,9 +172,9 @@ export default function PaperList({
       }
     };
 
-    // Small delay to prevent immediate re-triggering
-    timeout = setTimeout(setupObserver, 100);
-
+    // Add a delay to prevent immediate loading
+    const timeout = setTimeout(setupObserver, 300);
+    
     return () => {
       if (observer) {
         observer.disconnect();
@@ -179,6 +226,11 @@ export default function PaperList({
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
               <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">Loading more papers...</span>
+            </div>
+          )}
+          {!loading && !isLoadingMore && !hasMore && papers.length > 0 && (
+            <div className="text-sm text-gray-500 dark:text-gray-400 py-4">
+              No more papers to load
             </div>
           )}
         </div>
