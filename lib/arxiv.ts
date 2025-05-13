@@ -11,110 +11,141 @@ export async function fetchPapers({
   searchQuery = "",
   categories = [],
   start = 0,
-  maxResults = 10,
+  maxResults = 50,
 }: FetchPapersOptions): Promise<Paper[]> {
   // Build the query string
   let query = ""
 
   if (categories.length > 0) {
     // If specific categories are selected
-    query += categories.map((cat) => `cat:${cat}`).join("+OR+")
+    query += categories.map((cat) => `cat:${cat}`).join(" OR ")
   } else {
-    // Default to all CS papers
-    query += "cat:cs.*"
+    // Default to CS and Math papers with proper formatting
+    query += "(cat:cs.* OR cat:math.*)"
   }
 
   // Add title search if provided
   if (searchQuery) {
-    query += `+AND+ti:"${encodeURIComponent(searchQuery)}"`
+    query += ` AND ti:"${encodeURIComponent(searchQuery)}"`
   }
 
-  try {
-    // Add timestamp to prevent caching issues
-    const timestamp = Date.now();
-    // Create URL to our proxy API endpoint
-    const apiUrl = `/api/arxiv?query=${encodeURIComponent(query)}&start=${start}&maxResults=${maxResults}&_=${timestamp}`;
-    
-    console.log('Fetching papers with query:', query);
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-    
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    
-    clearTimeout(timeoutId);
+  const maxRetries = 5;
+  let retries = 0;
+  let lastError: Error | null = null;
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
+  while (retries < maxRetries) {
+    try {
+      // Add timestamp to prevent caching issues and signal it's a new request each time
+      const timestamp = Date.now();
+      // Create URL to our proxy API endpoint with _=${timestamp} to prevent caching
+      const apiUrl = `/api/arxiv?query=${encodeURIComponent(query)}&start=${start}&maxResults=${maxResults}&_=${timestamp}`;
+      
+      console.log(`Attempt ${retries + 1}/${maxRetries}: Fetching papers with query:`, query, 'start:', start, 'maxResults:', maxResults);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout (increased)
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      
+      clearTimeout(timeoutId);
 
-    const data = await response.json();
-    
-    // If our API returns an error but also fallback data
-    if (data.error && data.usedFallback && data.papers) {
-      console.warn('Using fallback data from API:', data.message);
-      return data.papers;
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // If our API returns an error but also fallback data
+      if (data.error && data.usedFallback && data.papers) {
+        console.warn('Using fallback data from API:', data.message);
+        
+        // If we got fallback data but it's empty and we've retried less than max,
+        // try again with a different start index
+        if (data.papers.length === 0 && retries < maxRetries - 1) {
+          console.log('Got empty fallback data, retrying with different start index');
+          retries++;
+          // Try a random offset to find papers
+          start = start + Math.floor(Math.random() * 100);
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        
+        return data.papers;
+      }
+      
+      // If our API returns an error with no fallback
+      if (data.error) {
+        throw new Error(data.message || 'Unknown error from API');
+      }
+      
+      const papers = data.papers || [];
+      
+      // If we got papers, return them
+      if (papers.length > 0) {
+        return papers;
+      }
+      
+      // If we got no papers and we've retried less than max, try again with a different start index
+      if (papers.length === 0 && retries < maxRetries - 1) {
+        console.log('No papers found, retrying with different start index');
+        retries++;
+        // Try a random offset to find papers
+        start = start + 50 + Math.floor(Math.random() * 50);
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        continue;
+      }
+      
+      // If we've retried max times and still got no papers, return empty array
+      return papers;
+    } catch (error) {
+      retries++;
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(`Error fetching papers (attempt ${retries}/${maxRetries}):`, error);
+      
+      // If we've reached max retries or it's an abort error, use mock data
+      if (retries >= maxRetries || (error instanceof DOMException && error.name === 'AbortError')) {
+        console.error('Request failed after retries or timed out, using mock data');
+        return getMockPapers(start);
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delay = 1000 * Math.pow(2, retries - 1);
+      console.log(`Waiting ${delay}ms before retrying...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-    
-    // If our API returns an error with no fallback
-    if (data.error) {
-      throw new Error(data.message || 'Unknown error from API');
-    }
-    
-    // Return the papers from our API
-    return data.papers || [];
-  } catch (error) {
-    // Handle abort error differently
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      console.error('Request timed out');
-      return getMockPapers();
-    }
-    
-    console.error('Error fetching papers:', error);
-    // Return mock data rather than throwing an error
-    return getMockPapers();
   }
+  
+  console.error(`Failed to fetch papers after ${maxRetries} attempts. Last error:`, lastError);
+  // Always return some papers, even if we had to use mock data
+  return getMockPapers(start);
 }
 
 // Fallback mock data in case API fails
-function getMockPapers(): Paper[] {
-  return [
-    {
-      id: "mock-1",
-      title: "Sample Paper: Deep Learning Applications in Computer Vision",
-      authors: ["John Smith", "Jane Doe", "Robert Johnson"],
-      abstract: "This paper explores recent advances in deep learning and their applications to computer vision problems. We review state-of-the-art models and propose new architectures that improve performance on benchmark datasets.",
+function getMockPapers(startIndex = 0): Paper[] {
+  // Generate different mock papers based on the startIndex to simulate infinite scrolling
+  return Array.from({ length: 10 }, (_, i) => {
+    const index = startIndex + i;
+    return {
+      id: `mock-${Date.now()}-${index}`,
+      title: `Sample Paper ${index}: ${['Deep Learning', 'Machine Learning', 'Computer Vision', 'Natural Language Processing', 'Reinforcement Learning'][index % 5]} Research`,
+      authors: ["Author " + (index * 2 + 1), "Author " + (index * 2 + 2)],
+      abstract: `This is a mock paper abstract for paper number ${index}. Created when real data could not be fetched from arXiv API.`,
       published: new Date().toISOString(),
       updated: new Date().toISOString(),
-      categories: ["cs.CV", "cs.LG", "cs.AI"],
-      pdfUrl: "https://arxiv.org/pdf/mock.1234.5678",
-    },
-    {
-      id: "mock-2",
-      title: "Transformer Models for Natural Language Processing",
-      authors: ["Alice Brown", "David Wilson"],
-      abstract: "We present a comprehensive overview of transformer-based models in natural language processing. Our analysis includes performance comparisons across multiple tasks and insights into future research directions.",
-      published: new Date().toISOString(),
-      updated: new Date().toISOString(),
-      categories: ["cs.CL", "cs.LG"],
-      pdfUrl: "https://arxiv.org/pdf/mock.2345.6789",
-    },
-    {
-      id: "mock-3",
-      title: "Reinforcement Learning in Multi-Agent Systems",
-      authors: ["Michael Chen", "Sarah Miller", "James Taylor", "Emily Davis"],
-      abstract: "This work addresses the challenges of applying reinforcement learning in multi-agent systems. We propose a novel framework that improves coordination between agents and demonstrate its effectiveness in complex environments.",
-      published: new Date().toISOString(),
-      updated: new Date().toISOString(),
-      categories: ["cs.MA", "cs.AI", "cs.LG"],
-      pdfUrl: "https://arxiv.org/pdf/mock.3456.7890",
-    }
-  ];
+      categories: ["cs.CV", "cs.LG", "cs.AI"].slice(0, (index % 3) + 1),
+      pdfUrl: `https://arxiv.org/pdf/mock.${index}.pdf`,
+    };
+  });
 }

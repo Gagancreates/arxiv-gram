@@ -37,14 +37,15 @@ interface ArxivResponse {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const query = searchParams.get('query') || 'cat:cs.*';
+  const query = searchParams.get('query') || 'cat:cs.* OR cat:math.*';
   const start = parseInt(searchParams.get('start') || '0');
   const maxResults = parseInt(searchParams.get('maxResults') || '10');
 
   try {
     // Properly encode the URL components
     const encodedQuery = encodeURIComponent(query);
-    const url = `https://export.arxiv.org/api/query?search_query=${encodedQuery}&start=${start}&max_results=${maxResults}&sortBy=submittedDate&sortOrder=descending`;
+    // Direct access to arXiv API without any sorting parameters to get papers from all dates
+    const url = `https://export.arxiv.org/api/query?search_query=${encodedQuery}&start=${start}&max_results=${maxResults}`;
     
     console.log('Fetching from arXiv with URL:', url);
     
@@ -52,9 +53,12 @@ export async function GET(request: Request) {
       method: 'GET',
       headers: {
         'Accept': 'application/xml',
-        'User-Agent': 'Mozilla/5.0 ArxivPaperViewer/1.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
       },
-      next: { revalidate: 600 }, // Cache for 10 minutes
+      cache: 'no-store',
+      next: { revalidate: 0 },
     });
 
     if (!response.ok) {
@@ -79,13 +83,18 @@ export async function GET(request: Request) {
     let result: ArxivResponse;
     try {
       result = parser.parse(xmlData);
+      console.log('ArXiv response parsed successfully:', result.feed ? 'Feed found' : 'No feed found');
+      if (result.feed) {
+        console.log('Entries found:', result.feed.entry ? (Array.isArray(result.feed.entry) ? result.feed.entry.length : '1') : 'None');
+      }
     } catch (parseError) {
       console.error('XML parsing error:', parseError);
       throw new Error(`Failed to parse XML: ${(parseError as Error).message}`);
     }
 
-    // Handle case when no results are found
+    // Handle case when no results are found - return empty array instead of mock data
     if (!result.feed || !result.feed.entry) {
+      console.log('No papers found in arXiv response');
       return NextResponse.json({ papers: [] });
     }
 
@@ -125,81 +134,39 @@ export async function GET(request: Request) {
               .filter((name): name is string => name !== undefined)
           : (entry.author?.name ? [entry.author.name] : ['Unknown Author']);
 
+        // Extract the published and updated dates
+        const published = entry.published || null;
+        const updated = entry.updated || published || null;
+
         return {
           id: entry.id || `unknown-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           title,
           authors,
           abstract,
-          published: entry.published || new Date().toISOString(),
-          updated: entry.updated || new Date().toISOString(),
+          published: published,
+          updated: updated,
           categories,
           pdfUrl: pdfLink?.href || (entry.id ? entry.id.replace("abs", "pdf") : ''),
         };
       } catch (entryError) {
         console.error('Error processing entry:', entryError, entry);
-        // Return a placeholder for failed entries
-        return {
-          id: `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-          title: 'Error Processing Paper',
-          authors: ['Error'],
-          abstract: 'This paper could not be processed correctly.',
-          published: new Date().toISOString(),
-          updated: new Date().toISOString(),
-          categories: [],
-          pdfUrl: '',
-        };
+        return null;
       }
-    });
+    }).filter(Boolean) as Paper[]; // Remove any null entries
+
+    // Log the dates of the papers
+    console.log('Paper dates:', papers.map(p => ({ id: p.id, published: p.published })));
 
     // Return successful response
     return NextResponse.json({ papers });
   } catch (error) {
     console.error('Error fetching from arXiv:', error);
     
-    // Return mock data instead of an error to ensure the app still works
-    const mockPapers = getMockPapers();
-    
+    // Return empty array instead of mock data to prevent date issues
     return NextResponse.json({ 
-      papers: mockPapers,
+      papers: [],
       error: 'Failed to fetch papers from arXiv', 
       message: (error as Error).message,
-      usedFallback: true
     });
   }
-}
-
-// Fallback mock data
-function getMockPapers(): Paper[] {
-  return [
-    {
-      id: "mock-1",
-      title: "Sample Paper: Deep Learning Applications in Computer Vision",
-      authors: ["John Smith", "Jane Doe", "Robert Johnson"],
-      abstract: "This paper explores recent advances in deep learning and their applications to computer vision problems. We review state-of-the-art models and propose new architectures that improve performance on benchmark datasets.",
-      published: new Date().toISOString(),
-      updated: new Date().toISOString(),
-      categories: ["cs.CV", "cs.LG", "cs.AI"],
-      pdfUrl: "https://arxiv.org/pdf/mock.1234.5678",
-    },
-    {
-      id: "mock-2",
-      title: "Transformer Models for Natural Language Processing",
-      authors: ["Alice Brown", "David Wilson"],
-      abstract: "We present a comprehensive overview of transformer-based models in natural language processing. Our analysis includes performance comparisons across multiple tasks and insights into future research directions.",
-      published: new Date().toISOString(),
-      updated: new Date().toISOString(),
-      categories: ["cs.CL", "cs.LG"],
-      pdfUrl: "https://arxiv.org/pdf/mock.2345.6789",
-    },
-    {
-      id: "mock-3",
-      title: "Reinforcement Learning in Multi-Agent Systems",
-      authors: ["Michael Chen", "Sarah Miller", "James Taylor", "Emily Davis"],
-      abstract: "This work addresses the challenges of applying reinforcement learning in multi-agent systems. We propose a novel framework that improves coordination between agents and demonstrate its effectiveness in complex environments.",
-      published: new Date().toISOString(),
-      updated: new Date().toISOString(),
-      categories: ["cs.MA", "cs.AI", "cs.LG"],
-      pdfUrl: "https://arxiv.org/pdf/mock.3456.7890",
-    }
-  ];
 } 

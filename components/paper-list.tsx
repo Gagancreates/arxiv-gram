@@ -145,26 +145,16 @@ export default function PaperList({
     const setupObserver = () => {
       observer = new IntersectionObserver(
         (entries) => {
-          if (!entries[0].isIntersecting) return;
-          
-          // Check if we're actually at the bottom of the container
-          const container = containerRef.current;
-          if (container) {
-            const { scrollTop, scrollHeight, clientHeight } = container;
-            const scrolledToBottom = scrollHeight - scrollTop - clientHeight < 200;
-            
-            // Only load more if we're near the bottom
-            if (scrolledToBottom && hasMore && !loading && !isLoadingMore) {
-              handleLoadMore();
-            }
-          } else {
-            // Fallback if container ref isn't available
-            if (hasMore && !loading && !isLoadingMore) {
-              handleLoadMore();
-            }
+          // Always trigger load more when the observer target is in view
+          if (entries[0].isIntersecting && !loading && !isLoadingMore) {
+            console.log("Observer target in view, loading more papers");
+            handleLoadMore();
           }
         },
-        { threshold: 0.1, rootMargin: '100px' }
+        { 
+          threshold: 0.01, // Trigger with just 1% visibility
+          rootMargin: '500px 0px' // Load 500px before the element comes into view
+        }
       );
 
       if (observerTarget.current) {
@@ -172,16 +162,58 @@ export default function PaperList({
       }
     };
 
-    // Add a delay to prevent immediate loading
-    const timeout = setTimeout(setupObserver, 300);
+    // Set up the observer immediately
+    setupObserver();
     
     return () => {
       if (observer) {
         observer.disconnect();
       }
-      clearTimeout(timeout);
     };
   }, [handleLoadMore, hasMore, loading, isLoadingMore, singleView]);
+
+  // Additional scroll-based loading as a backup
+  useEffect(() => {
+    if (singleView || !hasMore) return;
+    
+    const handleScroll = () => {
+      const container = containerRef.current;
+      if (!container || loading || isLoadingMore) return;
+      
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // If user has scrolled more than 60% through the content, load more
+      if (scrollTop > (scrollHeight - clientHeight) * 0.6) {
+        console.log("Scroll threshold reached, loading more papers");
+        handleLoadMore();
+      }
+    };
+    
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true });
+    }
+    
+    return () => {
+      if (container) {
+        container.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [hasMore, loading, isLoadingMore, singleView, handleLoadMore]);
+  
+  // Periodic timer to ensure content is loaded
+  useEffect(() => {
+    if (singleView || !hasMore) return;
+    
+    // Every 5 seconds, check if we need more content
+    const interval = setInterval(() => {
+      if (!loading && !isLoadingMore && hasMore) {
+        console.log("Periodic check: ensuring content is loaded");
+        handleLoadMore();
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [hasMore, loading, isLoadingMore, singleView, handleLoadMore]);
 
   if (papers.length === 0 && !loading) {
     return (
@@ -199,7 +231,7 @@ export default function PaperList({
     >
       {papers.map((paper, index) => (
         <div
-          key={paper.id}
+          key={`paper-${paper.id}`}
           onClick={onSelectPaper ? () => onSelectPaper(paper) : undefined}
           className={`paper-card-container ${onSelectPaper ? "cursor-pointer" : ""} ${isMobile ? "h-[100vh] snap-start snap-always flex items-center justify-center" : ""}`}
         >
