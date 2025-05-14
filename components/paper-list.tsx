@@ -168,34 +168,25 @@ export default function PaperList({
     loadMore();
   }, [isLoadingMore, loading, hasMore, loadMore, generateBatchId]);
 
-  // Reset loading state when papers change and restore visible card
+  // Reset loading state when papers change
   useEffect(() => {
     if (papers.length > previousPapersLength.current) {
       // Get how many new papers were added
-      const newPapersCount = papers.length - previousPapersLength.current;
+      // const newPapersCount = papers.length - previousPapersLength.current;
       
       setIsLoadingMore(false);
       previousPapersLength.current = papers.length;
       
-      // Keep cooldown active until user scrolls away from loading area
-      // This prevents immediate triggering of another load
-      
-      // Only restore visible card if we're in mobile
-      if (isMobile) {
-        restoreVisibleCard();
-        
-        // Set a timeout to eventually clear the cooldown even if user doesn't scroll
-        // This prevents the system from getting stuck if something goes wrong
-        setTimeout(() => {
-          loadingCooldown.current = false;
-        }, 5000);
-      }
+      // After a load, clear cooldown after a short delay
+      setTimeout(() => {
+        loadingCooldown.current = false;
+      }, 5000);
     } else if (papers.length === previousPapersLength.current && isLoadingMore) {
       // If papers length didn't change after loading attempt, we've reached the end
       setIsLoadingMore(false);
       loadingCooldown.current = false; // Reset cooldown
     }
-  }, [papers.length, isLoadingMore, isMobile, restoreVisibleCard]);
+  }, [papers.length, isLoadingMore]);
 
   // Intersection observer for infinite loading
   useEffect(() => {
@@ -321,7 +312,7 @@ export default function PaperList({
       {!singleView && (
         <div 
           ref={observerTarget} 
-          className={`h-20 flex justify-center items-center ${isMobile ? "snap-start snap-always" : ""}`}
+          className="h-20 flex justify-center items-center"
         >
           {(loading || isLoadingMore) && (
             <div className="flex items-center justify-center py-4">
