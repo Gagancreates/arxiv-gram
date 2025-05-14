@@ -113,29 +113,6 @@ export default function PaperList({
     return `${papers[0].id}-${papers[papers.length - 1].id}-${papers.length}`;
   }, [papers]);
 
-  // Focus on the last visible card after new content is loaded
-  const restoreVisibleCard = useCallback(() => {
-    if (!containerRef.current || !isMobile) return;
-    
-    // Give time for DOM to update
-    setTimeout(() => {
-      const cards = containerRef.current?.querySelectorAll('.paper-card-container');
-      if (!cards || lastVisibleCardIndex.current === -1) return;
-      
-      // If we have a valid last visible card index
-      if (lastVisibleCardIndex.current >= 0 && lastVisibleCardIndex.current < cards.length) {
-        const lastVisibleCard = cards[lastVisibleCardIndex.current] as HTMLElement;
-        if (lastVisibleCard) {
-          // Don't force scroll to the element, let the snap scrolling handle it
-          // Just make sure the element is in focus if needed
-          if (lastVisibleCard.getBoundingClientRect().top < 0) {
-            lastVisibleCard.scrollIntoView({ behavior: 'auto', block: 'start' });
-          }
-        }
-      }
-    }, 50);
-  }, [isMobile]);
-
   // Handle loading more papers safely with debounce and batch tracking
   const handleLoadMore = useCallback(() => {
     const now = Date.now();
