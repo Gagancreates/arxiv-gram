@@ -40,6 +40,8 @@ export default function PaperList({
   const previousPapersLength = useRef(papers.length)
   const lastLoadTime = useRef<number>(0)
   const loadingBatchId = useRef<string>("")
+  const lastVisibleCardIndex = useRef<number>(-1)
+  const loadingCooldown = useRef<boolean>(false)
   
   // Check if the device is mobile
   useEffect(() => {
@@ -55,21 +57,30 @@ export default function PaperList({
     }
   }, [])
 
-  // Optimize mobile scrolling
+  // Optimize mobile scrolling and track visible card
   useEffect(() => {
     if (!isMobile || !containerRef.current) return;
     
-    // Preload nearby papers to make scrolling smoother
-    const preloadNearbyPapers = () => {
+    // Preload nearby papers and track visible card
+    const trackVisibleCard = () => {
       const cards = containerRef.current?.querySelectorAll('.paper-card-container');
       if (!cards) return;
       
       const visibleCardIndex = Array.from(cards).findIndex(card => {
         const rect = card.getBoundingClientRect();
-        return rect.top >= 0 && rect.bottom <= window.innerHeight;
+        // Consider a card visible if its center is in the viewport
+        const cardCenter = rect.top + rect.height / 2;
+        return cardCenter >= 0 && cardCenter <= window.innerHeight;
       });
       
       if (visibleCardIndex !== -1) {
+        // If we're viewing a new card, we can remove the cooldown
+        if (lastVisibleCardIndex.current !== visibleCardIndex) {
+          loadingCooldown.current = false;
+        }
+        
+        lastVisibleCardIndex.current = visibleCardIndex;
+        
         // Preload next and previous card
         const preloadIndexes = [visibleCardIndex - 1, visibleCardIndex + 1];
         preloadIndexes.forEach(index => {
@@ -78,14 +89,20 @@ export default function PaperList({
             card.style.visibility = 'visible';
           }
         });
+        
+        // Check if user has scrolled away from the loading area
+        if (visibleCardIndex < cards.length - 2) {
+          // User has moved away from the loading area, reset cooldown
+          loadingCooldown.current = false;
+        }
       }
     };
     
     const container = containerRef.current;
-    container.addEventListener('scroll', preloadNearbyPapers);
+    container.addEventListener('scroll', trackVisibleCard, { passive: true });
     
     return () => {
-      container.removeEventListener('scroll', preloadNearbyPapers);
+      container.removeEventListener('scroll', trackVisibleCard);
     };
   }, [isMobile, papers.length]);
 
@@ -96,6 +113,29 @@ export default function PaperList({
     return `${papers[0].id}-${papers[papers.length - 1].id}-${papers.length}`;
   }, [papers]);
 
+  // Focus on the last visible card after new content is loaded
+  const restoreVisibleCard = useCallback(() => {
+    if (!containerRef.current || !isMobile) return;
+    
+    // Give time for DOM to update
+    setTimeout(() => {
+      const cards = containerRef.current?.querySelectorAll('.paper-card-container');
+      if (!cards || lastVisibleCardIndex.current === -1) return;
+      
+      // If we have a valid last visible card index
+      if (lastVisibleCardIndex.current >= 0 && lastVisibleCardIndex.current < cards.length) {
+        const lastVisibleCard = cards[lastVisibleCardIndex.current] as HTMLElement;
+        if (lastVisibleCard) {
+          // Don't force scroll to the element, let the snap scrolling handle it
+          // Just make sure the element is in focus if needed
+          if (lastVisibleCard.getBoundingClientRect().top < 0) {
+            lastVisibleCard.scrollIntoView({ behavior: 'auto', block: 'start' });
+          }
+        }
+      }
+    }, 50);
+  }, [isMobile]);
+
   // Handle loading more papers safely with debounce and batch tracking
   const handleLoadMore = useCallback(() => {
     const now = Date.now();
@@ -104,14 +144,16 @@ export default function PaperList({
     // Prevent loading if:
     // 1. Already loading
     // 2. No more papers to load
-    // 3. Less than 1 second since last load
+    // 3. Less than 3 seconds since last load
     // 4. Same batch is being loaded (prevents duplicate loads)
+    // 5. Currently in cooldown period after loading
     if (
       isLoadingMore || 
       loading || 
       !hasMore || 
-      (now - lastLoadTime.current < 1000) ||
-      (currentBatchId === loadingBatchId.current && currentBatchId !== "")
+      (now - lastLoadTime.current < 3000) ||
+      (currentBatchId === loadingBatchId.current && currentBatchId !== "") ||
+      loadingCooldown.current
     ) {
       return;
     }
@@ -120,21 +162,40 @@ export default function PaperList({
     setIsLoadingMore(true);
     lastLoadTime.current = now;
     loadingBatchId.current = currentBatchId;
+    loadingCooldown.current = true; // Set cooldown when loading starts
     
     // Load more papers
     loadMore();
   }, [isLoadingMore, loading, hasMore, loadMore, generateBatchId]);
 
-  // Reset loading state when papers change
+  // Reset loading state when papers change and restore visible card
   useEffect(() => {
     if (papers.length > previousPapersLength.current) {
+      // Get how many new papers were added
+      const newPapersCount = papers.length - previousPapersLength.current;
+      
       setIsLoadingMore(false);
       previousPapersLength.current = papers.length;
+      
+      // Keep cooldown active until user scrolls away from loading area
+      // This prevents immediate triggering of another load
+      
+      // Only restore visible card if we're in mobile
+      if (isMobile) {
+        restoreVisibleCard();
+        
+        // Set a timeout to eventually clear the cooldown even if user doesn't scroll
+        // This prevents the system from getting stuck if something goes wrong
+        setTimeout(() => {
+          loadingCooldown.current = false;
+        }, 5000);
+      }
     } else if (papers.length === previousPapersLength.current && isLoadingMore) {
       // If papers length didn't change after loading attempt, we've reached the end
       setIsLoadingMore(false);
+      loadingCooldown.current = false; // Reset cooldown
     }
-  }, [papers.length, isLoadingMore]);
+  }, [papers.length, isLoadingMore, isMobile, restoreVisibleCard]);
 
   // Intersection observer for infinite loading
   useEffect(() => {
@@ -145,15 +206,20 @@ export default function PaperList({
     const setupObserver = () => {
       observer = new IntersectionObserver(
         (entries) => {
-          // Always trigger load more when the observer target is in view
-          if (entries[0].isIntersecting && !loading && !isLoadingMore) {
-            console.log("Observer target in view, loading more papers");
-            handleLoadMore();
+          // Only trigger load more when:
+          // 1. Observer target is in view
+          // 2. Not already loading
+          // 3. Not in cooldown period
+          if (entries[0].isIntersecting && !loading && !isLoadingMore && !loadingCooldown.current) {
+            // Check if user is actually at the loading element (not just scrolling quickly past it)
+            if (entries[0].intersectionRatio > 0.8) {
+              handleLoadMore();
+            }
           }
         },
         { 
-          threshold: 0.01, // Trigger with just 1% visibility
-          rootMargin: '500px 0px' // Load 500px before the element comes into view
+          threshold: [0.5, 0.8, 1.0], // Track multiple thresholds
+          rootMargin: '50px 0px' // Less aggressive margin
         }
       );
 
@@ -172,49 +238,48 @@ export default function PaperList({
     };
   }, [handleLoadMore, hasMore, loading, isLoadingMore, singleView]);
 
-  // Additional scroll-based loading as a backup
+  // Support more papers loading when user is at the bottom and stays there
   useEffect(() => {
-    if (singleView || !hasMore) return;
+    if (singleView || !hasMore || !isMobile) return;
     
     const handleScroll = () => {
       const container = containerRef.current;
-      if (!container || loading || isLoadingMore) return;
+      if (!container || loading || isLoadingMore || loadingCooldown.current) return;
       
       const { scrollTop, scrollHeight, clientHeight } = container;
-      // If user has scrolled more than 60% through the content, load more
-      if (scrollTop > (scrollHeight - clientHeight) * 0.6) {
-        console.log("Scroll threshold reached, loading more papers");
-        handleLoadMore();
+      // If user is at the very end and stays there for a moment
+      if (scrollTop + clientHeight >= scrollHeight - 20) {
+        // User is at the very bottom, set a short timer to verify they're still there
+        setTimeout(() => {
+          if (containerRef.current) {
+            const { scrollTop: currentScrollTop, scrollHeight: currentScrollHeight, clientHeight: currentClientHeight } = containerRef.current;
+            if (currentScrollTop + currentClientHeight >= currentScrollHeight - 20) {
+              // User is still at the bottom after delay, load more
+              handleLoadMore();
+            }
+          }
+        }, 500);
       }
     };
     
     const container = containerRef.current;
     if (container) {
-      container.addEventListener('scroll', handleScroll, { passive: true });
+      // Using properly debounced scroll event
+      let scrollTimer: NodeJS.Timeout;
+      const debouncedScroll = () => {
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(handleScroll, 300);
+      };
+      
+      container.addEventListener('scroll', debouncedScroll, { passive: true });
+      
+      return () => {
+        clearTimeout(scrollTimer);
+        container.removeEventListener('scroll', debouncedScroll);
+      };
     }
-    
-    return () => {
-      if (container) {
-        container.removeEventListener('scroll', handleScroll);
-      }
-    };
-  }, [hasMore, loading, isLoadingMore, singleView, handleLoadMore]);
+  }, [hasMore, loading, isLoadingMore, singleView, handleLoadMore, isMobile]);
   
-  // Periodic timer to ensure content is loaded
-  useEffect(() => {
-    if (singleView || !hasMore) return;
-    
-    // Every 5 seconds, check if we need more content
-    const interval = setInterval(() => {
-      if (!loading && !isLoadingMore && hasMore) {
-        console.log("Periodic check: ensuring content is loaded");
-        handleLoadMore();
-      }
-    }, 5000);
-    
-    return () => clearInterval(interval);
-  }, [hasMore, loading, isLoadingMore, singleView, handleLoadMore]);
-
   if (papers.length === 0 && !loading) {
     return (
       <div className="text-center py-12">
@@ -234,6 +299,7 @@ export default function PaperList({
           key={`paper-${paper.id}`}
           onClick={onSelectPaper ? () => onSelectPaper(paper) : undefined}
           className={`paper-card-container ${onSelectPaper ? "cursor-pointer" : ""} ${isMobile ? "h-[100vh] snap-start snap-always flex items-center justify-center" : ""}`}
+          data-index={index}
         >
           <PaperCard
             paper={paper}
@@ -253,7 +319,10 @@ export default function PaperList({
       ))}
 
       {!singleView && (
-        <div ref={observerTarget} className={`h-10 flex justify-center items-center ${isMobile ? "snap-start snap-always h-20" : ""}`}>
+        <div 
+          ref={observerTarget} 
+          className={`h-20 flex justify-center items-center ${isMobile ? "snap-start snap-always" : ""}`}
+        >
           {(loading || isLoadingMore) && (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
