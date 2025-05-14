@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Search, ChevronLeft, X, Loader2 } from "lucide-react"
+import { Sun, Moon, Search, ChevronLeft, X, Loader2, ChevronUp } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import PaperList from "./paper-list"
 import FilterBar from "./filter-bar"
@@ -25,6 +25,7 @@ export default function PaperBrowser() {
   const [isSearching, setIsSearching] = useState(false)
   const searchResultsRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const [showReturnToTop, setShowReturnToTop] = useState(false)
 
   const { papers, savedPapers, likedPapers, loading, loadMore, toggleSaved, toggleLiked, hasMore } = usePapers(
     debouncedQuery,
@@ -97,6 +98,14 @@ export default function PaperBrowser() {
     )
   }
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowReturnToTop(window.scrollY > 300)
+    }
+    window.addEventListener("scroll", handleScroll)
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-full">
       {isMobile && selectedPaper && renderMobilePaperDetail()}
@@ -104,10 +113,10 @@ export default function PaperBrowser() {
       <header className={cn("mb-8", isMobile && selectedPaper ? "hidden" : "")}>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            arXiv<span className="text-blue-600">CS</span>
+            arXiv<span className="text-blue-600">gram</span>
           </h1>
           <div className="flex items-center gap-2">
-            <Button
+            {/* <Button
               variant="ghost"
               size="icon"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -115,7 +124,7 @@ export default function PaperBrowser() {
             >
               {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               <span className="sr-only">Toggle theme</span>
-            </Button>
+            </Button> */}
           </div>
         </div>
 
@@ -230,6 +239,17 @@ export default function PaperBrowser() {
           </Tabs>
         )}
       </header>
+      {showReturnToTop && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-4 left-4 rounded-full bg-white dark:bg-gray-900 shadow-lg z-50"
+        >
+          <ChevronUp className="h-5 w-5" />
+          <span className="sr-only">Return to top</span>
+        </Button>
+      )}
     </div>
   )
 }
