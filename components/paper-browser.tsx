@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Search, ChevronLeft } from "lucide-react"
+import { Sun, Moon, Search, ChevronLeft, X, Loader2 } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import PaperList from "./paper-list"
 import FilterBar from "./filter-bar"
@@ -21,20 +21,51 @@ export default function PaperBrowser() {
   const [activeTab, setActiveTab] = useState("browse")
   const isMobile = useMediaQuery("(max-width: 768px)")
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null)
+  const [isSearchActive, setIsSearchActive] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
+  const searchResultsRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const { papers, savedPapers, likedPapers, loading, loadMore, toggleSaved, toggleLiked, hasMore } = usePapers(
     debouncedQuery,
-    selectedCategories,
+    selectedCategories
   )
 
-  // Debounce search input
+  // Debounce search input with shorter delay
   useEffect(() => {
+    if (searchQuery === debouncedQuery) return;
+    
+    setIsSearching(true);
+    
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery)
-    }, 500)
+      setIsSearchActive(searchQuery.length > 0)
+      setIsSearching(false);
+    }, 300) // Reduced debounce delay from 500ms to 300ms for faster response
 
     return () => clearTimeout(timer)
-  }, [searchQuery])
+  }, [searchQuery, debouncedQuery])
+
+  // Clear search function
+  const handleClearSearch = () => {
+    setSearchQuery("")
+    setDebouncedQuery("")
+    setIsSearchActive(false)
+    setIsSearching(false)
+    
+    // Focus the search input after clearing
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }
+
+  // Handle submit to immediately perform search without waiting for debounce
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setDebouncedQuery(searchQuery);
+    setIsSearchActive(searchQuery.length > 0);
+    setIsSearching(false);
+  };
 
   // For mobile view - show single paper detail
   const renderMobilePaperDetail = () => {
@@ -89,70 +120,115 @@ export default function PaperBrowser() {
         </div>
 
         <div className="flex flex-col gap-4 mb-6 w-full">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <form onSubmit={handleSearchSubmit} className="relative">
+            {isSearching ? (
+              <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            )}
             <Input
+              ref={searchInputRef}
               type="text"
-              placeholder="Search papers by title..."
+              placeholder="Search papers by title or abstract..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 w-full"
+              className="pl-10 w-full pr-10"
             />
-          </div>
+            {searchQuery && (
+              <button 
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Clear search</span>
+              </button>
+            )}
+          </form>
           <FilterBar selectedCategories={selectedCategories} setSelectedCategories={setSelectedCategories} />
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
-            <TabsTrigger value="browse">Browse</TabsTrigger>
-            <TabsTrigger value="saved">Read Later ({savedPapers.length})</TabsTrigger>
-            <TabsTrigger value="liked">Liked ({likedPapers.length})</TabsTrigger>
-          </TabsList>
+        {/* Show search results */}
+        {isSearchActive && (
+          <div className="mb-6" ref={searchResultsRef}>
+            <h2 className="text-lg font-semibold mb-3">
+              {loading ? "Searching..." : (papers.length > 0 ? `Search results for "${searchQuery}"` : `No results found for "${searchQuery}"`)}
+            </h2>
+            {loading && papers.length === 0 ? (
+              <div className="flex justify-center items-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <span className="ml-3 text-gray-600 dark:text-gray-400">Searching papers...</span>
+              </div>
+            ) : (
+              <PaperList
+                papers={papers}
+                loading={loading}
+                loadMore={loadMore}
+                toggleSaved={toggleSaved}
+                toggleLiked={toggleLiked}
+                savedIds={savedPapers.map((p) => p.id)}
+                likedIds={likedPapers.map((p) => p.id)}
+                hasMore={hasMore}
+                onSelectPaper={isMobile ? setSelectedPaper : undefined}
+              />
+            )}
+          </div>
+        )}
 
-          <TabsContent value="browse" className="mt-10">
-            <PaperList
-              papers={papers}
-              loading={loading}
-              loadMore={loadMore}
-              toggleSaved={toggleSaved}
-              toggleLiked={toggleLiked}
-              savedIds={savedPapers.map((p) => p.id)}
-              likedIds={likedPapers.map((p) => p.id)}
-              hasMore={hasMore}
-              onSelectPaper={isMobile ? setSelectedPaper : undefined}
-            />
-          </TabsContent>
+        {/* Show tabs and regular content only when not searching */}
+        {!isSearchActive && (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
+              <TabsTrigger value="browse">Browse</TabsTrigger>
+              <TabsTrigger value="saved">Read Later ({savedPapers.length})</TabsTrigger>
+              <TabsTrigger value="liked">Liked ({likedPapers.length})</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="saved" className="mt-10">
-            <PaperList
-              papers={savedPapers}
-              loading={false}
-              loadMore={() => {}}
-              toggleSaved={toggleSaved}
-              toggleLiked={toggleLiked}
-              savedIds={savedPapers.map((p) => p.id)}
-              likedIds={likedPapers.map((p) => p.id)}
-              hasMore={false}
-              emptyMessage="No papers saved for later reading."
-              onSelectPaper={isMobile ? setSelectedPaper : undefined}
-            />
-          </TabsContent>
+            <TabsContent value="browse" className="mt-10">
+              <PaperList
+                papers={papers}
+                loading={loading}
+                loadMore={loadMore}
+                toggleSaved={toggleSaved}
+                toggleLiked={toggleLiked}
+                savedIds={savedPapers.map((p) => p.id)}
+                likedIds={likedPapers.map((p) => p.id)}
+                hasMore={hasMore}
+                onSelectPaper={isMobile ? setSelectedPaper : undefined}
+              />
+            </TabsContent>
 
-          <TabsContent value="liked" className="mt-10">
-            <PaperList
-              papers={likedPapers}
-              loading={false}
-              loadMore={() => {}}
-              toggleSaved={toggleSaved}
-              toggleLiked={toggleLiked}
-              savedIds={savedPapers.map((p) => p.id)}
-              likedIds={likedPapers.map((p) => p.id)}
-              hasMore={false}
-              emptyMessage="No liked papers yet."
-              onSelectPaper={isMobile ? setSelectedPaper : undefined}
-            />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="saved" className="mt-10">
+              <PaperList
+                papers={savedPapers}
+                loading={false}
+                loadMore={() => {}}
+                toggleSaved={toggleSaved}
+                toggleLiked={toggleLiked}
+                savedIds={savedPapers.map((p) => p.id)}
+                likedIds={likedPapers.map((p) => p.id)}
+                hasMore={false}
+                emptyMessage="No papers saved for later reading."
+                onSelectPaper={isMobile ? setSelectedPaper : undefined}
+              />
+            </TabsContent>
+
+            <TabsContent value="liked" className="mt-10">
+              <PaperList
+                papers={likedPapers}
+                loading={false}
+                loadMore={() => {}}
+                toggleSaved={toggleSaved}
+                toggleLiked={toggleLiked}
+                savedIds={savedPapers.map((p) => p.id)}
+                likedIds={likedPapers.map((p) => p.id)}
+                hasMore={false}
+                emptyMessage="No liked papers yet."
+                onSelectPaper={isMobile ? setSelectedPaper : undefined}
+              />
+            </TabsContent>
+          </Tabs>
+        )}
       </header>
     </div>
   )
