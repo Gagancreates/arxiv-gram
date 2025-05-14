@@ -1,8 +1,6 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useTheme } from "next-themes"
-import { Sun, Moon, Search, ChevronLeft, X, Loader2, ChevronUp } from "lucide-react"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import PaperList from "./paper-list"
 import FilterBar from "./filter-bar"
@@ -12,9 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePapers } from "@/hooks/use-papers"
 import type { Paper } from "@/types/paper"
 import { cn } from "@/lib/utils"
+import { Search, ChevronLeft, X, Loader2, ChevronUp } from "lucide-react"
 
 export default function PaperBrowser() {
-  const { theme, setTheme } = useTheme()
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
@@ -115,17 +113,6 @@ export default function PaperBrowser() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             arXiv<span className="text-blue-600">gram</span>
           </h1>
-          <div className="flex items-center gap-2">
-            {/* <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="rounded-full"
-            >
-              {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              <span className="sr-only">Toggle theme</span>
-            </Button> */}
-          </div>
         </div>
 
         <div className="flex flex-col gap-4 mb-6 w-full">
